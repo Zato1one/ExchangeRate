@@ -1,0 +1,112 @@
+﻿@model ExchangeRate.Models.ModelCurrencyRate
+
+<div class="container">
+    <div class="form-group" style="margin-top: 30px;">
+        @Html.Label("Choose currency", new { @class = "col-md-2 control-label", style = "text-align: left;" })
+        <div class="col-md-10">
+            @Html.DropDownList("Choose currency", new SelectList(Model.CurrencyCodes, "Code", "Name") , new { @class = "form-control", id = "chooseCurrency" })
+        </div>
+    </div>
+    <div class="form-group">
+        <div id="chart" style="min-width: 310px; height: 400px; margin-top: 120px;"></div>
+    </div>
+</div>
+
+@section scripts
+{
+
+@Scripts.Render("~/bundles/highcharts")
+
+<script>
+    $(function () {
+        var currencyCodes = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model.CurrencyCodes));
+        var chooseCurrencyName = $("#chooseCurrency option:selected").text();
+        var jsonRecords = Object.values(@Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model.Records)));
+        var chooseCurrencyNominal = currencyCodes.filter(cur => cur.Name == chooseCurrencyName)[0].Nominal;
+
+        function filterDate(jsonRecords) {
+            return jsonRecords.map(function (rec) {
+                return new Array(new Date(rec.Date.replace(/(\d{2}).(\d{2}).(\d{4})/, "$2/$1/$3")).valueOf(), parseFloat(rec.Value.replace(",", ".")));
+            })
+        };
+
+        var chart = Highcharts.chart('chart', {
+            chart: {
+                zoomType: 'x'
+            },
+            title: {
+                text: `${chooseCurrencyName} to RUB exchange rate over time`
+            },
+            subtitle: {
+                text: `Nominal ${chooseCurrencyNominal} ${chooseCurrencyName}`
+            },
+            xAxis: {
+                type: 'datetime'
+            },
+            yAxis: {
+                title: {
+                    text: 'Exchange rate'
+                }
+            },
+            legend: {
+                enabled: false
+            },
+            plotOptions: {
+                area: {
+                    fillColor: {
+                        linearGradient: {
+                            x1: 0,
+                            y1: 0,
+                            x2: 0,
+                            y2: 1
+                        },
+                        stops: [
+                            [0, Highcharts.getOptions().colors[0]],
+                            [1, Highcharts.Color(Highcharts.getOptions().colors[0]).setOpacity(0).get('rgba')]
+                        ]
+                    },
+                    marker: {
+                        radius: 2
+                    },
+                    lineWidth: 1,
+                    states: {
+                        hover: {
+                            lineWidth: 1
+                        }
+                    },
+                    threshold: null
+                }
+            },
+            series: [{
+                type: 'area',
+                name: `${chooseCurrencyName} to RUB`,
+                data: filterDate(jsonRecords)
+            }]
+        });
+
+        $('#chooseCurrency').change(function () {
+            $.ajax({
+                url: "/Home/Records",
+                data: `code=${$("#chooseCurrency").val()}`,
+                success: function (data) {
+                    var jsonRecords = Object.values(data);
+                    var chooseCurrencyName = $("#chooseCurrency option:selected").text();
+                    var chooseCurrencyNominal = currencyCodes.filter(cur => cur.Name == chooseCurrencyName)[0].Nominal;
+                    chart.update({
+                        title: {
+                            text: `${chooseCurrencyName} to RUB exchange rate over time`
+                        },
+                        subtitle: {
+                            text: `Nominal ${chooseCurrencyNominal} ${chooseCurrencyName}`
+                        },
+                        series: [{
+                            name: `${chooseCurrencyName} to RUB`,
+                            data: filterDate(jsonRecords)
+                        }]
+                    });
+                }
+            });
+        });
+    });
+</script>
+}
